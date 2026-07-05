@@ -1132,96 +1132,6 @@
                 font-weight: 700;
             }
 
-            /* ---------- RESULT MODAL ---------- */
-            #rmod {
-                position: fixed;
-                inset: 0;
-                z-index: 300;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: rgba(10, 12, 19, 0.5);
-                opacity: 0;
-                pointer-events: none;
-                transition: opacity 0.3s;
-                padding: 20px;
-            }
-            #rmod.on {
-                opacity: 1;
-                pointer-events: auto;
-            }
-            .minr {
-                max-width: 520px;
-                width: 100%;
-            }
-            .mhbar {
-                font-family: var(--label);
-                font-size: 12px;
-                font-weight: 700;
-                letter-spacing: 0.28em;
-                text-transform: uppercase;
-                color: var(--wine);
-                opacity: 0.7;
-                margin-bottom: 6px;
-            }
-            .mbody {
-                padding: 0;
-            }
-            .mhead {
-                font-family: var(--display);
-                font-weight: 700;
-                font-size: 22px;
-                color: var(--wine);
-                margin-bottom: 14px;
-                line-height: 1.3;
-                border-bottom: 1px solid rgba(90, 60, 30, 0.3);
-                padding-bottom: 12px;
-            }
-            .mbod {
-                font-family: var(--serif);
-                font-style: italic;
-                font-size: 17px;
-                line-height: 1.65;
-                margin-bottom: 14px;
-                color: var(--ink);
-                text-align: left;
-            }
-            .mnote {
-                font-family: var(--label);
-                font-size: 12.5px;
-                letter-spacing: 0.04em;
-                padding: 10px 12px;
-                margin-bottom: 8px;
-                border-left: 3px solid var(--brass);
-                background: rgba(176, 140, 71, 0.14);
-                color: var(--ink);
-            }
-            .mcont {
-                margin-top: 16px;
-                display: block;
-                margin-left: auto;
-                margin-right: auto;
-                font-family: var(--label);
-                font-size: 13px;
-                font-weight: 700;
-                letter-spacing: 0.2em;
-                text-transform: uppercase;
-                color: var(--ink);
-                background: var(--brassL);
-                border: 1px solid var(--brassD);
-                padding: 12px 30px;
-                box-shadow:
-                    inset 0 1px 0 rgba(255, 255, 255, 0.6),
-                    0 4px 12px rgba(0, 0, 0, 0.4);
-                transition:
-                    transform 0.1s,
-                    background 0.15s;
-            }
-            .mcont:hover {
-                background: #efd9a0;
-                transform: translateY(-2px);
-            }
-
             /* ---------- COLLAPSE / DEAD ENDING FX ---------- */
             #collapseov {
                 position: fixed;
@@ -1775,34 +1685,6 @@
             </div>
 
             <!-- ============ RESULT MODAL ============ -->
-            <div id="rmod">
-                <div class="minr letter-paper">
-                    <div
-                        class="letter-seal"
-                        style="
-                            width: 40px;
-                            height: 40px;
-                            font-size: 15px;
-                            top: -14px;
-                            right: 20px;
-                        "
-                    >
-                        E
-                    </div>
-                    <div class="mhbar">
-                        <span id="mey">A MOMENT PASSES</span>
-                    </div>
-                    <div class="mbody">
-                        <div class="mhead" id="mhd"></div>
-                        <div class="mbod" id="mbod"></div>
-                        <div class="mnote" id="mgn" style="display: none"></div>
-                        <button class="mcont" onclick="closeModal()">
-                            CONTINUE
-                        </button>
-                    </div>
-                </div>
-            </div>
-
             <div id="drag-ghost"></div>
 
             <!-- ============ APP ============ -->
@@ -5798,9 +5680,6 @@
                 } else if (id === "pen") {
                     setHandProps("book", "whiskey_glass");
                 }
-                setTimeout(() => {
-                    showResult({ head: r.head, body: r.body, advance: false });
-                }, 700);
             }
 
             /* ---------------------------------------------------------
@@ -5988,6 +5867,7 @@
                 );
                 const cardsEl = $("cards");
                 cardsEl.innerHTML = "";
+                delete cardsEl.dataset.locked;
                 round.opts.forEach((opt, i) => {
                     const div = document.createElement("div");
                     div.className = "dc";
@@ -6003,19 +5883,25 @@
             }
 
             function chooseOption(i) {
+                const cardsEl = $("cards");
+                if (cardsEl && cardsEl.dataset.locked === "1") return;
+                if (cardsEl) cardsEl.dataset.locked = "1";
                 const opt = ROUNDS[G.round].opts[i];
                 G.warmth = clamp(G.warmth + opt.w, 0, 8);
                 G.tension = clamp(G.tension + opt.t, 0, 8);
                 G.truth = clamp(G.truth + (opt.tr || 0), 0, 6);
+                if (cardsEl) {
+                    [...cardsEl.children].forEach((child, idx) => {
+                        child.onclick = null;
+                        child.style.pointerEvents = "none";
+                        if (child.classList.contains("dc")) {
+                            child.style.opacity = idx === i ? "1" : "0.35";
+                        }
+                    });
+                }
                 reactFace(opt.face, 3000);
                 updateMoodUI();
-                setTimeout(() => {
-                    showResult({
-                        head: opt.head,
-                        body: opt.body,
-                        advance: true,
-                    });
-                }, 700);
+                setTimeout(advanceRound, 1600);
             }
 
             /* ---------------------------------------------------------
@@ -6118,28 +6004,17 @@
             }
 
             /* ---------------------------------------------------------
-   MODAL / OVERLAY PLUMBING
+   ROUND ADVANCE (silent — no explainer card, the animation is the signal)
    --------------------------------------------------------- */
-            function showResult({ head, body, advance }) {
-                $("mhd").textContent = head;
-                $("mbod").innerHTML = body;
-                $("mgn").style.display = "none";
-                G.pendingAdvance = advance;
-                $("rmod").classList.add("on");
-            }
-            window.closeModal = function () {
-                $("rmod").classList.remove("on");
-                if (G.pendingAdvance) {
-                    G.pendingAdvance = false;
-                    G.round++;
-                    if (G.round >= 2 && !G.giftsFound.has("ring")) {
-                        G.giftsFound.add("ring");
-                        renderGifts("ring");
-                    }
-                    if (G.round >= TOTAL_ROUNDS) resolveEnding();
-                    else loadRound();
+            function advanceRound() {
+                G.round++;
+                if (G.round >= 2 && !G.giftsFound.has("ring")) {
+                    G.giftsFound.add("ring");
+                    renderGifts("ring");
                 }
-            };
+                if (G.round >= TOTAL_ROUNDS) resolveEnding();
+                else loadRound();
+            }
 
             function showOverlayId(id) {
                 document
